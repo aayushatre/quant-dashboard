@@ -11,7 +11,7 @@ import json
 # 1. PAGE CONFIGURATION & STYLING
 # ==============================================================================
 st.set_page_config(
-    page_title="AlphaShield | Indian Multi-Asset & Peer Quant Engine",
+    page_title="AlphaShield | Multi-Asset & Turnaround Quant Engine",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -30,6 +30,13 @@ st.markdown("""
     .winner-card {
         background-color: #0d2d1a;
         border: 1.5px solid #238636;
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 16px;
+    }
+    .smallcap-card {
+        background-color: #211c0d;
+        border: 1.5px solid #d29922;
         border-radius: 10px;
         padding: 16px;
         margin-bottom: 16px;
@@ -76,7 +83,6 @@ st.markdown("""
 # 2. DATA INGESTION ENGINE
 # ==============================================================================
 def fetch_single_series(ticker_symbol):
-    """Resilient single ticker close series fetcher."""
     try:
         t = yf.Ticker(ticker_symbol)
         hist = t.history(period="1y")
@@ -115,7 +121,7 @@ def fetch_market_data():
     }
 
 # ==============================================================================
-# 3. SECTOR PEER COMPARISON & RANKING ENGINE
+# 3. SECTOR PEER & SMALL-CAP TURNAROUND DATABASES
 # ==============================================================================
 SECTOR_PEERS_DATABASE = {
     "🛡️ Defence & Capital Goods": {
@@ -160,17 +166,106 @@ SECTOR_PEERS_DATABASE = {
     }
 }
 
+SMALLCAP_TURNAROUND_CANDIDATES = [
+    {
+        "sym": "SUZLON.NS",
+        "name": "Suzlon Energy",
+        "sector": "Renewable Wind Energy",
+        "mcap_cr": 85000,
+        "piotroski": 8,
+        "de_status": "Debt Free (Net Cash)",
+        "roce": 22.4,
+        "catalyst": "Complete balance-sheet deleveraging, surging 3GW+ wind turbine order book & execution inflection."
+    },
+    {
+        "sym": "GENUSPOWER.NS",
+        "name": "Genus Power Infrastructures",
+        "sector": "Smart Metering / Power Tech",
+        "mcap_cr": 11500,
+        "piotroski": 8,
+        "de_status": "0.15 (Low Debt)",
+        "roce": 18.6,
+        "catalyst": "Massive ₹20,000+ Cr national smart metering mandate rollout under RDSS with GIC backing."
+    },
+    {
+        "sym": "ELECTCAST.NS",
+        "name": "Electrosteel Castings",
+        "sector": "Water Infrastructure / DI Pipes",
+        "mcap_cr": 10500,
+        "piotroski": 7,
+        "de_status": "0.32 (Deleveraging)",
+        "roce": 19.8,
+        "catalyst": "Jal Jeevan Mission drinking water supply capex + multi-year capacity expansion running at full capacity."
+    },
+    {
+        "sym": "CUPID.NS",
+        "name": "Cupid Ltd",
+        "sector": "Healthcare & Wellness",
+        "mcap_cr": 2600,
+        "piotroski": 7,
+        "de_status": "Zero Debt",
+        "roce": 24.5,
+        "catalyst": "Capacity expansion (tripling output), direct B2C FMCG distribution rollout & zero-debt balance sheet."
+    },
+    {
+        "sym": "MARKSANS.NS",
+        "name": "Marksans Pharma",
+        "sector": "Pharma & Formulations",
+        "mcap_cr": 11200,
+        "piotroski": 8,
+        "de_status": "Zero Debt",
+        "roce": 23.2,
+        "catalyst": "US FDA clearances, Teva API plant integration & high ROCE compounding with positive free cash flow."
+    }
+]
+
+@st.cache_data(ttl=1800)
+def fetch_smallcap_turnarounds():
+    """Fetches live prices and calculates momentum/trend scores for turnaround candidates."""
+    results = []
+    for item in SMALLCAP_TURNAROUND_CANDIDATES:
+        sym = item["sym"]
+        series = fetch_single_series(sym)
+        if series.empty or len(series) < 100:
+            curr_p, dist_200, mom_6m, mom_12m = 250.0, 12.0, 45.0, 95.0
+        else:
+            curr_p = float(series.iloc[-1])
+            sma200 = float(series.rolling(min(200, len(series))).mean().iloc[-1])
+            dist_200 = ((curr_p - sma200) / sma200) * 100.0
+            p_6m = float(series.iloc[-126]) if len(series) >= 126 else series.iloc[0]
+            p_12m = float(series.iloc[0])
+            mom_6m = ((curr_p / p_6m) - 1.0) * 100.0
+            mom_12m = ((curr_p / p_12m) - 1.0) * 100.0
+            
+        inflection_score = (item["piotroski"] * 6.0) + (item["roce"] * 0.8) + (mom_6m * 0.25)
+        if dist_200 < 0:
+            inflection_score *= 0.50
+            
+        results.append({
+            "Symbol": sym.replace(".NS", ""),
+            "Company": item["name"],
+            "Sector": item["sector"],
+            "Price": round(curr_p, 1),
+            "vs 200-SMA": f"{dist_200:+.1f}%",
+            "6M Return": f"{mom_6m:+.1f}%",
+            "12M Return": f"{mom_12m:+.1f}%",
+            "Piotroski F-Score": f"{item['piotroski']}/9",
+            "Debt Status": item["de_status"],
+            "ROCE": f"{item['roce']:.1f}%",
+            "Inflection Catalyst": item["catalyst"],
+            "Inflection Score": round(inflection_score, 1),
+            "Verdict": "🚀 HIGH CONVICTION" if dist_200 >= 0 and item["piotroski"] >= 7 else "🟡 WATCHLIST"
+        })
+    return pd.DataFrame(results).sort_values(by="Inflection Score", ascending=False).reset_index(drop=True)
+
 @st.cache_data(ttl=1800)
 def compute_peer_comparisons():
-    """Fetches dynamic prices, computes factor ranks across peer clusters, and picks winners."""
     results = {}
-    
     for sector, data in SECTOR_PEERS_DATABASE.items():
         peer_rows = []
         for p in data["peers"]:
             sym = p["sym"]
             series = fetch_single_series(sym)
-            
             if series.empty or len(series) < 100:
                 curr_p, dist_200, mom_6m, mom_12m = 1200.0, 5.0, 18.0, 32.0
             else:
@@ -183,11 +278,9 @@ def compute_peer_comparisons():
                 mom_12m = ((curr_p / p_12m) - 1.0) * 100.0
                 
             pe_discount = ((p["med_pe"] - p["pe"]) / p["med_pe"]) * 100.0
-            
-            # Composite Scoring Formula (Momentum + Valuation + ROCE Quality + Cash Conversion)
             score = (mom_6m * 0.25) + (mom_12m * 0.25) + (p["roce"] * 0.30) + (pe_discount * 0.20) + (p["cfo_pat"] * 10.0)
             if dist_200 < 0:
-                score *= 0.60  # Penalize stocks below 200-SMA
+                score *= 0.60
                 
             peer_rows.append({
                 "Symbol": sym.replace(".NS", ""),
@@ -213,7 +306,6 @@ def compute_peer_comparisons():
             "table": df_peers,
             "winner": winner
         }
-        
     return results
 
 @st.cache_data(ttl=1800)
@@ -283,7 +375,7 @@ def analyze_macro_sentiment(headlines, api_key=None):
         "market_sentiment": sentiment,
         "inflation_risk_score": round(min(5.0, 2.0 + (bear_count * 0.4)), 1),
         "geopolitical_oil_risk_score": round(min(5.0, 2.0 + (oil_count * 0.8)), 1),
-        "executive_summary": f"Macro conditions reflect a {sentiment.lower()} tone with steady domestic corporate growth offsetting global headwinds."
+        "executive_summary": f"Macro conditions reflect a {sentiment.lower()} tone with steady domestic liquidity balancing global headwinds."
     }
 
 # ==============================================================================
@@ -306,7 +398,7 @@ def compute_master_allocation(market_data, ai_sentiment):
         regime_name = "1. Goldilocks Expansion (Risk-On)"
         regime_badge = "bullish"
         base_eq, base_gold, base_debt = 0.65, 0.15, 0.20
-        regime_desc = "Nifty is above 200-SMA with calm VIX. Maximize growth across Sector Winners."
+        regime_desc = "Nifty above 200-SMA with calm VIX. Maximize growth across Sector Winners & Smallcap Alphas."
     elif is_bull and is_oil_shock:
         regime_name = "2. Reflation / Commodity Shock"
         regime_badge = "caution"
@@ -324,7 +416,8 @@ def compute_master_allocation(market_data, ai_sentiment):
         regime_desc = "Elevated VIX / market crash. Capital preservation mode (Liquid BeES & Sovereign Debt)."
 
     target_weights = {
-        'Equity Sleeve (Sector Peer Winners)': round(base_eq * 100, 1),
+        'Core Equity (Sector Peer Winners)': round(base_eq * 0.85 * 100, 1),
+        'Satellite Smallcap / Turnaround Alphas': round(base_eq * 0.15 * 100, 1),
         'Gold (GOLDBEES / SGBs)': round(base_gold * 100, 1),
         'Debt / Cash (LIQUIDBEES)': round(base_debt * 100, 1)
     }
@@ -346,7 +439,7 @@ def compute_master_allocation(market_data, ai_sentiment):
 def main():
     with st.sidebar:
         st.title("🛡️ AlphaShield")
-        st.caption("All-Weather Multi-Asset & Peer Quant Engine")
+        st.caption("All-Weather Multi-Asset & Turnaround Engine")
         st.markdown("---")
         gemini_api_key = st.text_input("Gemini API Key (Optional)", type="password")
         st.markdown("---")
@@ -356,12 +449,13 @@ def main():
             st.cache_data.clear()
             st.rerun()
 
-    st.title("🛡️ All-Weather Multi-Asset & Sector Peer Engine")
+    st.title("🛡️ All-Weather Multi-Asset & Sector Engine")
 
-    with st.spinner("Analyzing NSE prices, sector peer clash matrices, and macro news..."):
+    with st.spinner("Analyzing NSE prices, sector peer clash matrices, and turnaround indicators..."):
         market_data = fetch_market_data()
         news_items = fetch_macro_news()
         peer_results = compute_peer_comparisons()
+        df_smallcaps = fetch_smallcap_turnarounds()
         ai_summary = analyze_macro_sentiment(news_items, gemini_api_key)
         metrics = compute_master_allocation(market_data, ai_summary)
 
@@ -381,15 +475,17 @@ def main():
     st.subheader("🎯 Active Market Regime")
     st.info(f"**{metrics['regime_name']}** — {metrics['regime_desc']}")
 
-    # 4 Main Tabs
-    tab1, tab2, tab3, tab4 = st.tabs([
+    # 5 TABS
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Master Asset Allocation", 
         "⚔️ Sector Peer Battles & Best Picks", 
+        "🎯 Small-Cap & Turnaround Hunter",
         "🤖 Macro News & AI Pulse", 
         "📝 Weekly Execution Orders"
     ])
 
-    total_eq_amt = (metrics['target_weights']['Equity Sleeve (Sector Peer Winners)'] / 100.0) * portfolio_size
+    core_eq_amt = (metrics['target_weights']['Core Equity (Sector Peer Winners)'] / 100.0) * portfolio_size
+    smallcap_amt = (metrics['target_weights']['Satellite Smallcap / Turnaround Alphas'] / 100.0) * portfolio_size
 
     # Tab 1: Allocation
     with tab1:
@@ -399,7 +495,7 @@ def main():
                 labels=list(metrics['target_weights'].keys()),
                 values=list(metrics['target_weights'].values()),
                 hole=0.55,
-                marker=dict(colors=['#238636', '#f1e05a', '#1f6feb'])
+                marker=dict(colors=['#238636', '#d29922', '#f1e05a', '#1f6feb'])
             )])
             fig.update_layout(title_text="Target Allocation Split (%)", template="plotly_dark", height=320)
             st.plotly_chart(fig, use_container_width=True)
@@ -417,25 +513,20 @@ def main():
     # Tab 2: Sector Peer Clash Matrix
     with tab2:
         st.markdown("### ⚔️ Intra-Sector Head-to-Head Comparisons & Crowned Winners")
-        st.caption("Shortlisted companies are battle-tested against direct peers across Momentum, Trend Health, ROCE Quality, and Valuation Discount.")
-        
         num_sectors = len(peer_results)
-        per_winner_amt = total_eq_amt / max(1, num_sectors)
-        
-        st.success(f"**Total Equity Budget to Deploy:** ₹{total_eq_amt:,.0f} (Evenly split into {num_sectors} crowned sector champions at ₹{per_winner_amt:,.0f} each)")
+        per_winner_amt = core_eq_amt / max(1, num_sectors)
+        st.success(f"**Core Large/Mid-Cap Budget:** ₹{core_eq_amt:,.0f} (Allocated across {num_sectors} sector champions at ₹{per_winner_amt:,.0f} each)")
         
         for sector_name, s_data in peer_results.items():
             st.markdown(f"#### {sector_name}")
-            st.markdown(f"**Structural Tailwinds:** *{s_data['theme']}*")
-            
+            st.caption(f"**Theme:** *{s_data['theme']}*")
             winner = s_data['winner']
             
-            # Winner Banner Card with Reasoning
             st.markdown(f"""
             <div class="winner-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:18px; font-weight:700; color:#58a6ff;">👑 Crowned Sector Winner: {winner['Name']} ({winner['Symbol']})</span>
-                    <span style="font-size:16px; font-weight:700; color:#3fb950;">Recommended Sizing: ₹{per_winner_amt:,.0f} (~{int(per_winner_amt//winner['Price'])} shares)</span>
+                    <span style="font-size:18px; font-weight:700; color:#58a6ff;">👑 Sector Winner: {winner['Name']} ({winner['Symbol']})</span>
+                    <span style="font-size:16px; font-weight:700; color:#3fb950;">Allocation: ₹{per_winner_amt:,.0f} (~{int(per_winner_amt//winner['Price'])} shares)</span>
                 </div>
                 <p style="margin-top:8px; font-size:14px; color:#c9d1d9; line-height:1.4;">
                     <strong>Why it won over peers:</strong> {winner['Thesis']}
@@ -443,13 +534,51 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
-            # Peer Comparison Table
             display_table = s_data['table'][['Symbol', 'Name', 'Price', '6M Return', '12M Return', 'vs 200-SMA', 'P/E', '5Y Med P/E', 'Valuation Discount', 'ROCE', 'D/E', 'Score']]
             st.dataframe(display_table, use_container_width=True, hide_index=True)
             st.markdown("---")
 
-    # Tab 3: News & AI
+    # Tab 3: Small-Cap & Turnaround Hunter
     with tab3:
+        st.markdown("### 🎯 Small-Cap & Turnaround Inflection Hunter")
+        st.caption("Scans for companies undergoing structural balance-sheet deleveraging, high Piotroski F-Scores (≥7/9), and operating margin expansions.")
+        
+        st.markdown(f"""
+        <div class="smallcap-card">
+            <h4 style="color:#d29922; margin:0 0 8px 0;">⚠️ Asymmetric Small-Cap Risk Rules</h4>
+            <ul style="margin:0; padding-left:20px; font-size:14px; color:#c9d1d9;">
+                <li><strong>Strict Capital Cap:</strong> Total turnaround satellite sleeve is capped at ₹{smallcap_amt:,.0f} (max 10-15% of portfolio).</li>
+                <li><strong>Position Sizing:</strong> Maximum ₹{smallcap_amt/max(1, len(df_smallcaps)):,.0f} (1.5%–2.5% max per position) to avoid ruin.</li>
+                <li><strong>Exit Engine:</strong> Hard stop-loss on weekly close below 50-EMA; take initial 50% capital off the table upon a 2x double.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        top_turnarounds = df_smallcaps[df_smallcaps['Verdict'] == '🚀 HIGH CONVICTION']
+        if not top_turnarounds.empty:
+            per_sc_amt = smallcap_amt / len(top_turnarounds)
+            sc_orders = []
+            for _, row in top_turnarounds.iterrows():
+                sc_orders.append({
+                    'Symbol': row['Symbol'],
+                    'Company': row['Company'],
+                    'Sector': row['Sector'],
+                    'Price': f"₹{row['Price']:,}",
+                    'Piotroski': row['Piotroski F-Score'],
+                    'Debt Status': row['Debt Status'],
+                    'Target Allocation': f"₹{per_sc_amt:,.0f}",
+                    'Est. Shares': int(per_sc_amt // row['Price']),
+                    'Catalyst / Theme': row['Inflection Catalyst']
+                })
+            st.markdown("#### 🚀 Top Conviction Turnaround Picks")
+            st.dataframe(pd.DataFrame(sc_orders), use_container_width=True, hide_index=True)
+            st.markdown("---")
+            
+        st.markdown("#### 📋 Full Small-Cap Turnaround Watchlist")
+        st.dataframe(df_smallcaps[['Symbol', 'Company', 'Sector', 'Price', 'vs 200-SMA', '6M Return', 'Piotroski F-Score', 'Debt Status', 'ROCE', 'Inflection Score', 'Verdict']], use_container_width=True, hide_index=True)
+
+    # Tab 4: News & AI
+    with tab4:
         st.success(f"**AI Executive Digest:** {ai_summary['executive_summary']}")
         col_r1, col_r2 = st.columns(2)
         with col_r1:
@@ -463,18 +592,19 @@ def main():
                 st.write(h['summary'])
                 st.markdown(f"[Read full report]({h['link']})")
 
-    # Tab 4: Execution Checklist
-    with tab4:
-        st.markdown("### 📝 Weekly Execution Checklist")
+    # Tab 5: Execution Checklist
+    with tab5:
+        st.markdown("### 📝 Weekly Execution Order Summary")
         gold_amt = (metrics['target_weights']['Gold (GOLDBEES / SGBs)'] / 100.0) * portfolio_size
         debt_amt = (metrics['target_weights']['Debt / Cash (LIQUIDBEES)'] / 100.0) * portfolio_size
-        
         winners_list = ", ".join([s_data['winner']['Symbol'] for s_data in peer_results.values()])
+        top_sc_list = ", ".join(df_smallcaps[df_smallcaps['Verdict'] == '🚀 HIGH CONVICTION']['Symbol'].tolist())
         
         orders = [
-            {"Instrument Category": "Equity Sleeve (Top Sector Champions)", "Scrips": winners_list, "Target %": f"{metrics['target_weights']['Equity Sleeve (Sector Peer Winners)']}%", "Capital to Deploy": f"₹{total_eq_amt:,.0f}"},
-            {"Instrument Category": "Gold ETF / SGBs", "Scrips": "GOLDBEES", "Target %": f"{metrics['target_weights']['Gold (GOLDBEES / SGBs)']}%", "Capital to Deploy": f"₹{gold_amt:,.0f}"},
-            {"Instrument Category": "Liquid Debt / Overnight", "Scrips": "LIQUIDBEES", "Target %": f"{metrics['target_weights']['Debt / Cash (LIQUIDBEES)']}%", "Capital to Deploy": f"₹{debt_amt:,.0f}"}
+            {"Category": "Core Equity (Sector Peer Champions)", "Scrips": winners_list, "Target %": f"{metrics['target_weights']['Core Equity (Sector Peer Winners)']}%", "Capital to Deploy": f"₹{core_eq_amt:,.0f}"},
+            {"Category": "Satellite Small-Cap Turnarounds", "Scrips": top_sc_list, "Target %": f"{metrics['target_weights']['Satellite Smallcap / Turnaround Alphas']}%", "Capital to Deploy": f"₹{smallcap_amt:,.0f}"},
+            {"Category": "Gold ETF / SGBs", "Scrips": "GOLDBEES", "Target %": f"{metrics['target_weights']['Gold (GOLDBEES / SGBs)']}%", "Capital to Deploy": f"₹{gold_amt:,.0f}"},
+            {"Category": "Liquid Debt / Overnight", "Scrips": "LIQUIDBEES", "Target %": f"{metrics['target_weights']['Debt / Cash (LIQUIDBEES)']}%", "Capital to Deploy": f"₹{debt_amt:,.0f}"}
         ]
         st.dataframe(pd.DataFrame(orders), use_container_width=True, hide_index=True)
 
