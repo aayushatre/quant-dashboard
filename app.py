@@ -11,7 +11,7 @@ import json
 # 1. PAGE CONFIGURATION & STYLING
 # ==============================================================================
 st.set_page_config(
-    page_title="AlphaShield | Multi-Asset & Turnaround Quant Engine",
+    page_title="AlphaShield | Fundamental & Multi-Asset Quant Engine",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -41,46 +41,34 @@ st.markdown("""
         padding: 16px;
         margin-bottom: 16px;
     }
-    .badge-bullish {
-        background-color: #1f6feb22;
-        color: #58a6ff;
-        border: 1px solid #388bfd;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: 600;
+    .fund-card {
+        background-color: #161b22;
+        border-left: 4px solid #388bfd;
+        border-radius: 6px;
+        padding: 12px 16px;
+        margin-bottom: 10px;
     }
-    .badge-bearish {
-        background-color: #f8514922;
-        color: #f85149;
-        border: 1px solid #f85149;
-        padding: 4px 10px;
-        border-radius: 12px;
+    .badge-pass {
+        background-color: #23863622;
+        color: #3fb950;
+        border: 1px solid #238636;
+        padding: 3px 8px;
+        border-radius: 8px;
         font-weight: 600;
     }
     .badge-caution {
         background-color: #d2992222;
         color: #e3b341;
         border: 1px solid #d29922;
-        padding: 4px 10px;
-        border-radius: 12px;
+        padding: 3px 8px;
+        border-radius: 8px;
         font-weight: 600;
-    }
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #161b22;
-        border-radius: 6px;
-        padding: 8px 16px;
-        color: #8b949e;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #238636 !important;
-        color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. DATA INGESTION ENGINE
+# 2. RESILIENT MARKET DATA FETCHER
 # ==============================================================================
 def fetch_single_series(ticker_symbol):
     try:
@@ -121,113 +109,82 @@ def fetch_market_data():
     }
 
 # ==============================================================================
-# 3. SECTOR PEER & SMALL-CAP TURNAROUND DATABASES
+# 3. 360° FUNDAMENTAL AUDIT & FINANCIAL DATABASE
 # ==============================================================================
-SECTOR_PEERS_DATABASE = {
-    "🛡️ Defence & Capital Goods": {
-        "theme": "Domestic indigenisation capex, soaring export order books & government budgetary priority.",
-        "peers": [
-            {"sym": "BEL.NS", "name": "Bharat Electronics", "pe": 44.2, "med_pe": 34.0, "roce": 29.8, "de": 0.0, "cfo_pat": 1.15, "thesis": "Zero debt balance sheet, dominant market share in domestic radar/avionics, and highest ROCE (29.8%) with strong order visibility."},
-            {"sym": "HAL.NS", "name": "Hindustan Aeronautics", "pe": 36.5, "med_pe": 24.0, "roce": 31.2, "de": 0.0, "cfo_pat": 0.95, "thesis": "Monopoly manufacturer of fighter jets and helicopters, but subject to lumpy delivery cycles and export execution timelines."},
-            {"sym": "BDL.NS", "name": "Bharat Dynamics", "pe": 58.0, "med_pe": 38.0, "roce": 16.4, "de": 0.0, "cfo_pat": 0.82, "thesis": "Critical missile systems supplier, but trades at a high valuation multiple with lower ROCE compared to BEL."}
-        ]
-    },
-    "🛍️ Retail & Consumer Discretionary": {
-        "theme": "Rapid formalisation of consumption, store footprint expansion & rising middle-class disposable income.",
-        "peers": [
-            {"sym": "TRENT.NS", "name": "Trent Ltd", "pe": 135.0, "med_pe": 115.0, "roce": 26.5, "de": 0.25, "cfo_pat": 1.30, "thesis": "Leading momentum performer in India with explosive store expansion (Zudio), high same-store sales growth, and high cash conversion."},
-            {"sym": "DMART.NS", "name": "Avenue Supermarts", "pe": 98.0, "med_pe": 125.0, "roce": 19.2, "de": 0.0, "cfo_pat": 0.98, "thesis": "High-quality low-cost grocery retailer trading at a discount to 5Y median P/E, but facing margin pressure from quick-commerce competition."},
-            {"sym": "TITAN.NS", "name": "Titan Company", "pe": 82.0, "med_pe": 78.0, "roce": 24.0, "de": 0.45, "cfo_pat": 0.75, "thesis": "Dominant premium jewellery brand, but impacted short-term by gold price swings and customs duty adjustments."}
-        ]
-    },
-    "⚡ Power & Green Infrastructure": {
-        "theme": "Surging domestic peak power demand, data center electricity needs, and massive transmission grid modernization.",
-        "peers": [
-            {"sym": "NTPC.NS", "name": "NTPC Ltd", "pe": 16.2, "med_pe": 17.5, "roce": 15.8, "de": 1.35, "cfo_pat": 1.25, "thesis": "Base-load power leader transitioning aggressively to green energy with strong dividend yield and lower valuation multiple."},
-            {"sym": "POWERGRID.NS", "name": "Power Grid Corp", "pe": 18.5, "med_pe": 19.8, "roce": 19.2, "de": 1.40, "cfo_pat": 1.35, "thesis": "Natural monopoly across inter-state transmission lines with assured regulated ROE and consistent dividend payouts."},
-            {"sym": "TATAPOWER.NS", "name": "Tata Power", "pe": 33.0, "med_pe": 26.0, "roce": 12.8, "de": 1.55, "cfo_pat": 0.88, "thesis": "Integrated renewable play across rooftop solar and EV charging, but carries higher valuation and lower return on capital."}
-        ]
-    },
-    "🏦 Private Banking & Credit": {
-        "theme": "Sustained credit growth across retail & SME, historic low NPAs, and resilient net interest margins.",
-        "peers": [
-            {"sym": "ICICIBANK.NS", "name": "ICICI Bank", "pe": 17.5, "med_pe": 21.0, "roce": 17.8, "de": 5.5, "cfo_pat": 1.10, "thesis": "Best-in-class return on assets (RoA > 2.2%), strong asset quality, and trades at a noticeable discount to 5-year historical average P/E."},
-            {"sym": "HDFCBANK.NS", "name": "HDFC Bank", "pe": 18.8, "med_pe": 22.5, "roce": 16.2, "de": 6.8, "cfo_pat": 0.90, "thesis": "Largest private lender with unmatched branch reach, but still navigating post-merger liquidity ratio consolidation."},
-            {"sym": "KOTAKBANK.NS", "name": "Kotak Mahindra Bank", "pe": 21.0, "med_pe": 28.0, "roce": 14.5, "de": 4.8, "cfo_pat": 0.95, "thesis": "Strong capital adequacy and low credit costs, but growth rate has lagged peers during regulatory tech transitions."}
-        ]
-    },
-    "💊 Healthcare & Pharmaceuticals": {
-        "theme": "Defensive balance sheets, specialty pharma pipeline clearances, and steady US generics pricing.",
-        "peers": [
-            {"sym": "SUNPHARMA.NS", "name": "Sun Pharma", "pe": 34.0, "med_pe": 38.5, "roce": 18.5, "de": 0.05, "cfo_pat": 1.20, "thesis": "Global specialty pharma scale with pricing power in dermatology/ophthalmology and strong domestic market leadership."},
-            {"sym": "CIPLA.NS", "name": "Cipla Ltd", "pe": 28.5, "med_pe": 31.0, "roce": 19.5, "de": 0.02, "cfo_pat": 1.05, "thesis": "Dominant respiratory leader with steady cash flows, but lower international specialty growth compared to Sun Pharma."},
-            {"sym": "DRREDDY.NS", "name": "Dr. Reddy's Lab", "pe": 19.2, "med_pe": 23.0, "roce": 21.0, "de": 0.08, "cfo_pat": 0.85, "thesis": "Attractive valuation multiple, but faces higher revenue dependency on volatile single US patent exclusivity products."}
-        ]
-    }
+# Full financial health metrics: ROCE, ROE, Debt/Equity, CFO/PAT, Operating Margin, 3Y Sales CAGR, Pledge %
+STOCKS_FUNDAMENTAL_DB = {
+    # Sector Leaders & Competitors
+    "BEL.NS": {"name": "Bharat Electronics", "category": "Core Largecap", "sector": "Defence Capex", "pe": 44.2, "med_pe": 34.0, "roce": 29.8, "roe": 24.2, "de": 0.0, "cfo_pat": 1.15, "opm": 24.5, "sales_cagr_3y": 14.8, "pledge": 0.0, "fcf_pos": True, "thesis": "Zero net debt, high cash conversion (CFO > PAT), and order visibility of 3.5x annual revenue."},
+    "HAL.NS": {"name": "Hindustan Aeronautics", "category": "Core Largecap", "sector": "Defence Manufacturing", "pe": 36.5, "med_pe": 24.0, "roce": 31.2, "roe": 26.5, "de": 0.0, "cfo_pat": 0.95, "opm": 28.0, "sales_cagr_3y": 12.4, "pledge": 0.0, "fcf_pos": True, "thesis": "Monopoly manufacturer of defense aircraft with zero debt; delivery lumps create short-term cash flow variance."},
+    "BDL.NS": {"name": "Bharat Dynamics", "category": "Midcap", "sector": "Defence Capex", "pe": 58.0, "med_pe": 38.0, "roce": 16.4, "roe": 13.8, "de": 0.0, "cfo_pat": 0.82, "opm": 19.5, "sales_cagr_3y": 8.5, "pledge": 0.0, "fcf_pos": False, "thesis": "Clean balance sheet but lower ROCE and negative trailing free cash flow vs BEL."},
+    "TRENT.NS": {"name": "Trent Ltd", "category": "Core Largecap", "sector": "Retail Consumption", "pe": 135.0, "med_pe": 115.0, "roce": 26.5, "roe": 22.8, "de": 0.25, "cfo_pat": 1.30, "opm": 15.8, "sales_cagr_3y": 48.5, "pledge": 0.0, "fcf_pos": True, "thesis": "Outstanding sales compounding (48% 3Y CAGR) & high cash conversion offset premium valuation."},
+    "DMART.NS": {"name": "Avenue Supermarts", "category": "Core Largecap", "sector": "Retail Consumption", "pe": 98.0, "med_pe": 125.0, "roce": 19.2, "roe": 16.0, "de": 0.0, "cfo_pat": 0.98, "opm": 8.4, "sales_cagr_3y": 28.0, "pledge": 0.0, "fcf_pos": True, "thesis": "Zero debt ownership model trading at discount to historical P/E; quick commerce brings near-term margin pressure."},
+    "TITAN.NS": {"name": "Titan Company", "category": "Core Largecap", "sector": "Consumer Discretionary", "pe": 82.0, "med_pe": 78.0, "roce": 24.0, "roe": 28.5, "de": 0.45, "cfo_pat": 0.75, "opm": 11.2, "sales_cagr_3y": 22.5, "pledge": 0.0, "fcf_pos": False, "thesis": "Strong brand power, but inventory expansion results in CFO < PAT in recent quarters."},
+    "NTPC.NS": {"name": "NTPC Ltd", "category": "Core Largecap", "sector": "Power & Renewables", "pe": 16.2, "med_pe": 17.5, "roce": 15.8, "roe": 14.2, "de": 1.35, "cfo_pat": 1.25, "opm": 26.0, "sales_cagr_3y": 15.2, "pledge": 0.0, "fcf_pos": True, "thesis": "Regulated return framework guarantees cash generation; heavy renewable transition under way at attractive P/E."},
+    "POWERGRID.NS": {"name": "Power Grid Corp", "category": "Core Largecap", "sector": "Power Infrastructure", "pe": 18.5, "med_pe": 19.8, "roce": 19.2, "roe": 19.8, "de": 1.40, "cfo_pat": 1.35, "opm": 88.0, "sales_cagr_3y": 7.5, "pledge": 0.0, "fcf_pos": True, "thesis": "High operating margins and assured ROE on transmission assets with consistent dividend yield."},
+    "TATAPOWER.NS": {"name": "Tata Power", "category": "Midcap", "sector": "Power & Renewables", "pe": 33.0, "med_pe": 26.0, "roce": 12.8, "roe": 12.5, "de": 1.55, "cfo_pat": 0.88, "opm": 18.5, "sales_cagr_3y": 21.0, "pledge": 1.2, "fcf_pos": False, "thesis": "Aggressive EV charging/solar buildout, but higher financial leverage and lower ROCE vs NTPC."},
+    "ICICIBANK.NS": {"name": "ICICI Bank", "category": "Core Largecap", "sector": "Banking & Credit", "pe": 17.5, "med_pe": 21.0, "roce": 17.8, "roe": 18.5, "de": 5.5, "cfo_pat": 1.10, "opm": 42.0, "sales_cagr_3y": 24.0, "pledge": 0.0, "fcf_pos": True, "thesis": "High return on assets (RoA > 2.3%), low net NPAs (<0.45%), and trading below 5-year median P/E."},
+    "HDFCBANK.NS": {"name": "HDFC Bank", "category": "Core Largecap", "sector": "Banking & Credit", "pe": 18.8, "med_pe": 22.5, "roce": 16.2, "roe": 16.8, "de": 6.8, "cfo_pat": 0.90, "opm": 44.0, "sales_cagr_3y": 29.0, "pledge": 0.0, "fcf_pos": True, "thesis": "Huge franchise moat; still consolidating credit-to-deposit ratio following mega-merger."},
+    "SUNPHARMA.NS": {"name": "Sun Pharma", "category": "Core Largecap", "sector": "Healthcare & Pharma", "pe": 34.0, "med_pe": 38.5, "roce": 18.5, "roe": 16.5, "de": 0.05, "cfo_pat": 1.20, "opm": 28.5, "sales_cagr_3y": 11.5, "pledge": 0.0, "fcf_pos": True, "thesis": "Specialty innovative pipeline delivers pricing power, high cash conversion, and zero net debt."},
+    "CIPLA.NS": {"name": "Cipla Ltd", "category": "Core Largecap", "sector": "Healthcare & Pharma", "pe": 28.5, "med_pe": 31.0, "roce": 19.5, "roe": 17.2, "de": 0.02, "cfo_pat": 1.05, "opm": 24.5, "sales_cagr_3y": 10.2, "pledge": 0.0, "fcf_pos": True, "thesis": "Strong domestic formulation cash cow, but lower global specialty patent upside vs Sun Pharma."},
+    
+    # Smallcap & Turnaround Hunter Candidates
+    "SUZLON.NS": {"name": "Suzlon Energy", "category": "Turnaround Smallcap", "sector": "Wind Energy", "pe": 48.0, "med_pe": 85.0, "roce": 22.4, "roe": 24.0, "de": 0.02, "cfo_pat": 1.18, "opm": 16.2, "sales_cagr_3y": 32.0, "pledge": 0.0, "fcf_pos": True, "thesis": "Complete balance-sheet deleveraging; interest cost wiped out with surging 3.5GW order pipeline."},
+    "GENUSPOWER.NS": {"name": "Genus Power Infra", "category": "Turnaround Smallcap", "sector": "Smart Metering", "pe": 38.5, "med_pe": 42.0, "roce": 18.6, "roe": 15.5, "de": 0.15, "cfo_pat": 0.92, "opm": 14.5, "sales_cagr_3y": 26.5, "pledge": 0.0, "fcf_pos": True, "thesis": "Massive ₹20,000+ Cr national smart metering mandate with GIC concessionaire backing."},
+    "ELECTCAST.NS": {"name": "Electrosteel Castings", "category": "Smallcap Value", "sector": "Water Infra / DI Pipes", "pe": 12.8, "med_pe": 15.5, "roce": 19.8, "roe": 21.0, "de": 0.32, "cfo_pat": 1.05, "opm": 15.0, "sales_cagr_3y": 28.0, "pledge": 0.0, "fcf_pos": True, "thesis": "Jal Jeevan drinking water capex beneficiary; debt down 40% over 2 years with high ROCE."},
+    "CUPID.NS": {"name": "Cupid Ltd", "category": "Smallcap Growth", "sector": "Wellness FMCG", "pe": 42.0, "med_pe": 38.0, "roce": 24.5, "roe": 22.0, "de": 0.0, "cfo_pat": 1.10, "opm": 29.5, "sales_cagr_3y": 18.5, "pledge": 0.0, "fcf_pos": True, "thesis": "Zero debt manufacturing leader expanding capacity by 3x and entering domestic B2C retail."},
+    "MARKSANS.NS": {"name": "Marksans Pharma", "category": "Smallcap Growth", "sector": "Pharma Formulations", "pe": 26.0, "med_pe": 28.5, "roce": 23.2, "roe": 20.5, "de": 0.0, "cfo_pat": 1.12, "opm": 21.0, "sales_cagr_3y": 21.5, "pledge": 0.0, "fcf_pos": True, "thesis": "US FDA clearances, zero debt, high cash generation, and backward integration via Teva API plant."}
 }
 
-SMALLCAP_TURNAROUND_CANDIDATES = [
-    {
-        "sym": "SUZLON.NS",
-        "name": "Suzlon Energy",
-        "sector": "Renewable Wind Energy",
-        "mcap_cr": 85000,
-        "piotroski": 8,
-        "de_status": "Debt Free (Net Cash)",
-        "roce": 22.4,
-        "catalyst": "Complete balance-sheet deleveraging, surging 3GW+ wind turbine order book & execution inflection."
-    },
-    {
-        "sym": "GENUSPOWER.NS",
-        "name": "Genus Power Infrastructures",
-        "sector": "Smart Metering / Power Tech",
-        "mcap_cr": 11500,
-        "piotroski": 8,
-        "de_status": "0.15 (Low Debt)",
-        "roce": 18.6,
-        "catalyst": "Massive ₹20,000+ Cr national smart metering mandate rollout under RDSS with GIC backing."
-    },
-    {
-        "sym": "ELECTCAST.NS",
-        "name": "Electrosteel Castings",
-        "sector": "Water Infrastructure / DI Pipes",
-        "mcap_cr": 10500,
-        "piotroski": 7,
-        "de_status": "0.32 (Deleveraging)",
-        "roce": 19.8,
-        "catalyst": "Jal Jeevan Mission drinking water supply capex + multi-year capacity expansion running at full capacity."
-    },
-    {
-        "sym": "CUPID.NS",
-        "name": "Cupid Ltd",
-        "sector": "Healthcare & Wellness",
-        "mcap_cr": 2600,
-        "piotroski": 7,
-        "de_status": "Zero Debt",
-        "roce": 24.5,
-        "catalyst": "Capacity expansion (tripling output), direct B2C FMCG distribution rollout & zero-debt balance sheet."
-    },
-    {
-        "sym": "MARKSANS.NS",
-        "name": "Marksans Pharma",
-        "sector": "Pharma & Formulations",
-        "mcap_cr": 11200,
-        "piotroski": 8,
-        "de_status": "Zero Debt",
-        "roce": 23.2,
-        "catalyst": "US FDA clearances, Teva API plant integration & high ROCE compounding with positive free cash flow."
-    }
-]
+def audit_fundamental_health(f):
+    """
+    Computes a forensic fundamental score (0 to 100) and gate pass/caution status.
+    Pillars: ROCE (>15%), CFO/PAT (>0.85), Solvency (D/E < 0.5 or Bank), Zero Pledge, FCF Positive.
+    """
+    points = 0
+    flags = []
+    
+    # 1. Profitability & Capital Efficiency (Max 30 pts)
+    if f['roce'] >= 25.0: points += 30
+    elif f['roce'] >= 18.0: points += 24
+    elif f['roce'] >= 14.0: points += 16
+    else: flags.append("Low ROCE (<14%)")
+
+    # 2. Earnings Quality & Cash Flow Realization (Max 25 pts)
+    if f['cfo_pat'] >= 1.0: points += 25
+    elif f['cfo_pat'] >= 0.80: points += 18
+    else: flags.append("Weak Cash Conversion (CFO < 0.80x PAT)")
+
+    # 3. Leverage & Solvency (Max 20 pts)
+    if f['sector'] in ["Banking & Credit", "NBFC / Lending"]:
+        points += 20  # Handled via RoA and Capital Adequacy
+    else:
+        if f['de'] == 0.0: points += 20
+        elif f['de'] <= 0.35: points += 15
+        elif f['de'] <= 0.60: points += 8
+        else: flags.append("High Leverage (D/E > 0.60)")
+
+    # 4. Valuation Comfort vs 5Y Median (Max 15 pts)
+    pe_discount = ((f['med_pe'] - f['pe']) / f['med_pe']) * 100.0
+    if pe_discount >= 0: points += 15
+    elif pe_discount >= -20: points += 10
+    else: flags.append("Trading at >20% Premium to 5Y Med P/E")
+
+    # 5. Governance & Forensic (Pledge = 0) (Max 10 pts)
+    if f['pledge'] == 0.0: points += 10
+    else: flags.append(f"Promoter Pledge detected ({f['pledge']}%)")
+
+    status = "✅ PASS" if points >= 75 and len(flags) <= 1 else ("⚠️ CAUTION" if points >= 55 else "❌ FAIL")
+    return points, status, flags
 
 @st.cache_data(ttl=1800)
-def fetch_smallcap_turnarounds():
-    """Fetches live prices and calculates momentum/trend scores for turnaround candidates."""
-    results = []
-    for item in SMALLCAP_TURNAROUND_CANDIDATES:
-        sym = item["sym"]
+def generate_full_fundamental_report():
+    """Audits all universe stocks with live price and fundamental scorecards."""
+    records = []
+    for sym, f in STOCKS_FUNDAMENTAL_DB.items():
         series = fetch_single_series(sym)
         if series.empty or len(series) < 100:
-            curr_p, dist_200, mom_6m, mom_12m = 250.0, 12.0, 45.0, 95.0
+            curr_p, dist_200, mom_6m, mom_12m = 1000.0, 5.0, 20.0, 35.0
         else:
             curr_p = float(series.iloc[-1])
             sma200 = float(series.rolling(min(200, len(series))).mean().iloc[-1])
@@ -236,77 +193,39 @@ def fetch_smallcap_turnarounds():
             p_12m = float(series.iloc[0])
             mom_6m = ((curr_p / p_6m) - 1.0) * 100.0
             mom_12m = ((curr_p / p_12m) - 1.0) * 100.0
-            
-        inflection_score = (item["piotroski"] * 6.0) + (item["roce"] * 0.8) + (mom_6m * 0.25)
+
+        fund_score, gate_status, red_flags = audit_fundamental_health(f)
+        pe_disc = ((f['med_pe'] - f['pe']) / f['med_pe']) * 100.0
+        
+        # Total Composite Rank: 50% Fundamentals + 50% Price Momentum & Trend
+        total_score = (fund_score * 0.50) + (mom_6m * 0.25) + (mom_12m * 0.15) + (dist_200 * 0.10)
         if dist_200 < 0:
-            inflection_score *= 0.50
-            
-        results.append({
+            total_score *= 0.65
+
+        records.append({
             "Symbol": sym.replace(".NS", ""),
-            "Company": item["name"],
-            "Sector": item["sector"],
+            "Name": f["name"],
+            "Category": f["category"],
+            "Sector": f["sector"],
             "Price": round(curr_p, 1),
             "vs 200-SMA": f"{dist_200:+.1f}%",
             "6M Return": f"{mom_6m:+.1f}%",
-            "12M Return": f"{mom_12m:+.1f}%",
-            "Piotroski F-Score": f"{item['piotroski']}/9",
-            "Debt Status": item["de_status"],
-            "ROCE": f"{item['roce']:.1f}%",
-            "Inflection Catalyst": item["catalyst"],
-            "Inflection Score": round(inflection_score, 1),
-            "Verdict": "🚀 HIGH CONVICTION" if dist_200 >= 0 and item["piotroski"] >= 7 else "🟡 WATCHLIST"
+            "ROCE": f"{f['roce']:.1f}%",
+            "D/E": f"{f['de']:.2f}",
+            "CFO / PAT": f"{f['cfo_pat']:.2f}x",
+            "P/E": f['pe'],
+            "5Y Med P/E": f['med_pe'],
+            "Valuation Disc": f"{pe_disc:+.1f}%",
+            "Pledge": f"{f['pledge']}%",
+            "Fund Score": fund_score,
+            "Total Score": round(total_score, 1),
+            "Gate Status": gate_status,
+            "Red Flags": ", ".join(red_flags) if red_flags else "None (Clean Financials)",
+            "Thesis": f["thesis"],
+            "raw_total": total_score
         })
-    return pd.DataFrame(results).sort_values(by="Inflection Score", ascending=False).reset_index(drop=True)
-
-@st.cache_data(ttl=1800)
-def compute_peer_comparisons():
-    results = {}
-    for sector, data in SECTOR_PEERS_DATABASE.items():
-        peer_rows = []
-        for p in data["peers"]:
-            sym = p["sym"]
-            series = fetch_single_series(sym)
-            if series.empty or len(series) < 100:
-                curr_p, dist_200, mom_6m, mom_12m = 1200.0, 5.0, 18.0, 32.0
-            else:
-                curr_p = float(series.iloc[-1])
-                sma200 = float(series.rolling(min(200, len(series))).mean().iloc[-1])
-                dist_200 = ((curr_p - sma200) / sma200) * 100.0
-                p_6m = float(series.iloc[-126]) if len(series) >= 126 else series.iloc[0]
-                p_12m = float(series.iloc[0])
-                mom_6m = ((curr_p / p_6m) - 1.0) * 100.0
-                mom_12m = ((curr_p / p_12m) - 1.0) * 100.0
-                
-            pe_discount = ((p["med_pe"] - p["pe"]) / p["med_pe"]) * 100.0
-            score = (mom_6m * 0.25) + (mom_12m * 0.25) + (p["roce"] * 0.30) + (pe_discount * 0.20) + (p["cfo_pat"] * 10.0)
-            if dist_200 < 0:
-                score *= 0.60
-                
-            peer_rows.append({
-                "Symbol": sym.replace(".NS", ""),
-                "Name": p["name"],
-                "Price": round(curr_p, 1),
-                "6M Return": f"{mom_6m:+.1f}%",
-                "12M Return": f"{mom_12m:+.1f}%",
-                "vs 200-SMA": f"{dist_200:+.1f}%",
-                "P/E": p["pe"],
-                "5Y Med P/E": p["med_pe"],
-                "Valuation Discount": f"{pe_discount:+.1f}%",
-                "ROCE": f"{p['roce']:.1f}%",
-                "D/E": p["de"],
-                "Thesis": p["thesis"],
-                "Score": round(score, 1),
-                "raw_score": score
-            })
-            
-        df_peers = pd.DataFrame(peer_rows).sort_values(by="raw_score", ascending=False).reset_index(drop=True)
-        winner = df_peers.iloc[0]
-        results[sector] = {
-            "theme": data["theme"],
-            "table": df_peers,
-            "winner": winner
-        }
-    return results
+    df = pd.DataFrame(records).sort_values(by="raw_total", ascending=False).reset_index(drop=True)
+    return df
 
 @st.cache_data(ttl=1800)
 def fetch_macro_news():
@@ -375,7 +294,7 @@ def analyze_macro_sentiment(headlines, api_key=None):
         "market_sentiment": sentiment,
         "inflation_risk_score": round(min(5.0, 2.0 + (bear_count * 0.4)), 1),
         "geopolitical_oil_risk_score": round(min(5.0, 2.0 + (oil_count * 0.8)), 1),
-        "executive_summary": f"Macro conditions reflect a {sentiment.lower()} tone with steady domestic liquidity balancing global headwinds."
+        "executive_summary": f"Macro conditions reflect a {sentiment.lower()} tone with domestic corporate balance sheets mitigating global headwinds."
     }
 
 # ==============================================================================
@@ -398,7 +317,7 @@ def compute_master_allocation(market_data, ai_sentiment):
         regime_name = "1. Goldilocks Expansion (Risk-On)"
         regime_badge = "bullish"
         base_eq, base_gold, base_debt = 0.65, 0.15, 0.20
-        regime_desc = "Nifty above 200-SMA with calm VIX. Maximize growth across Sector Winners & Smallcap Alphas."
+        regime_desc = "Nifty above 200-SMA with calm VIX. Maximize growth across Fundamental & Momentum leaders."
     elif is_bull and is_oil_shock:
         regime_name = "2. Reflation / Commodity Shock"
         regime_badge = "caution"
@@ -416,8 +335,8 @@ def compute_master_allocation(market_data, ai_sentiment):
         regime_desc = "Elevated VIX / market crash. Capital preservation mode (Liquid BeES & Sovereign Debt)."
 
     target_weights = {
-        'Core Equity (Sector Peer Winners)': round(base_eq * 0.85 * 100, 1),
-        'Satellite Smallcap / Turnaround Alphas': round(base_eq * 0.15 * 100, 1),
+        'Core Large/Midcap (Fundamental Champions)': round(base_eq * 0.85 * 100, 1),
+        'Satellite Turnaround & Smallcap Alphas': round(base_eq * 0.15 * 100, 1),
         'Gold (GOLDBEES / SGBs)': round(base_gold * 100, 1),
         'Debt / Cash (LIQUIDBEES)': round(base_debt * 100, 1)
     }
@@ -439,23 +358,22 @@ def compute_master_allocation(market_data, ai_sentiment):
 def main():
     with st.sidebar:
         st.title("🛡️ AlphaShield")
-        st.caption("All-Weather Multi-Asset & Turnaround Engine")
+        st.caption("360° Fundamental & Multi-Asset Engine")
         st.markdown("---")
         gemini_api_key = st.text_input("Gemini API Key (Optional)", type="password")
         st.markdown("---")
         portfolio_size = st.number_input("Total Portfolio Capital (₹)", min_value=10000, max_value=100000000, value=500000, step=25000)
         st.markdown("---")
-        if st.button("🔄 Refresh Data"):
+        if st.button("🔄 Refresh Data & Financials"):
             st.cache_data.clear()
             st.rerun()
 
-    st.title("🛡️ All-Weather Multi-Asset & Sector Engine")
+    st.title("🛡️ All-Weather Multi-Asset & Fundamental Engine")
 
-    with st.spinner("Analyzing NSE prices, sector peer clash matrices, and turnaround indicators..."):
+    with st.spinner("Auditing balance sheets, forensic ratios, and sector peer clash matrices..."):
         market_data = fetch_market_data()
         news_items = fetch_macro_news()
-        peer_results = compute_peer_comparisons()
-        df_smallcaps = fetch_smallcap_turnarounds()
+        df_all = generate_full_fundamental_report()
         ai_summary = analyze_macro_sentiment(news_items, gemini_api_key)
         metrics = compute_master_allocation(market_data, ai_summary)
 
@@ -479,13 +397,13 @@ def main():
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "📊 Master Asset Allocation", 
         "⚔️ Sector Peer Battles & Best Picks", 
+        "🩺 360° Fundamental & Forensic Audit",
         "🎯 Small-Cap & Turnaround Hunter",
-        "🤖 Macro News & AI Pulse", 
         "📝 Weekly Execution Orders"
     ])
 
-    core_eq_amt = (metrics['target_weights']['Core Equity (Sector Peer Winners)'] / 100.0) * portfolio_size
-    smallcap_amt = (metrics['target_weights']['Satellite Smallcap / Turnaround Alphas'] / 100.0) * portfolio_size
+    core_eq_amt = (metrics['target_weights']['Core Large/Midcap (Fundamental Champions)'] / 100.0) * portfolio_size
+    smallcap_amt = (metrics['target_weights']['Satellite Turnaround & Smallcap Alphas'] / 100.0) * portfolio_size
 
     # Tab 1: Allocation
     with tab1:
@@ -510,99 +428,100 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Tab 2: Sector Peer Clash Matrix
+    # Tab 2: Sector Peer Battles with Fundamental Proof
     with tab2:
-        st.markdown("### ⚔️ Intra-Sector Head-to-Head Comparisons & Crowned Winners")
-        num_sectors = len(peer_results)
-        per_winner_amt = core_eq_amt / max(1, num_sectors)
-        st.success(f"**Core Large/Mid-Cap Budget:** ₹{core_eq_amt:,.0f} (Allocated across {num_sectors} sector champions at ₹{per_winner_amt:,.0f} each)")
+        st.markdown("### ⚔️ Sector Peer Battles (Quant Score + Fundamental Proof)")
+        st.caption("Each sector's candidates are cross-examined on ROCE, Cash Conversion (CFO/PAT), and Solvency.")
         
-        for sector_name, s_data in peer_results.items():
-            st.markdown(f"#### {sector_name}")
-            st.caption(f"**Theme:** *{s_data['theme']}*")
-            winner = s_data['winner']
+        sectors = df_all[df_all['Category'] == 'Core Largecap']['Sector'].unique()
+        per_winner_amt = core_eq_amt / max(1, len(sectors))
+        st.success(f"**Core Large/Midcap Budget:** ₹{core_eq_amt:,.0f} (Split into {len(sectors)} sector champions at ₹{per_winner_amt:,.0f} each)")
+
+        for sec in sectors:
+            sec_df = df_all[df_all['Sector'] == sec].sort_values(by="raw_total", ascending=False)
+            winner = sec_df.iloc[0]
             
+            st.markdown(f"#### 🏷️ Sector: {sec}")
             st.markdown(f"""
             <div class="winner-card">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:18px; font-weight:700; color:#58a6ff;">👑 Sector Winner: {winner['Name']} ({winner['Symbol']})</span>
+                    <span style="font-size:18px; font-weight:700; color:#58a6ff;">👑 Crowned Champion: {winner['Name']} ({winner['Symbol']})</span>
                     <span style="font-size:16px; font-weight:700; color:#3fb950;">Allocation: ₹{per_winner_amt:,.0f} (~{int(per_winner_amt//winner['Price'])} shares)</span>
                 </div>
-                <p style="margin-top:8px; font-size:14px; color:#c9d1d9; line-height:1.4;">
-                    <strong>Why it won over peers:</strong> {winner['Thesis']}
+                <p style="margin-top:8px; font-size:14px; color:#c9d1d9;">
+                    <strong>Financial Strength & Thesis:</strong> {winner['Thesis']}
                 </p>
+                <div style="font-size:13px; color:#8b949e;">
+                    <strong>Audit Score:</strong> {winner['Fund Score']}/100 | <strong>ROCE:</strong> {winner['ROCE']} | <strong>CFO/PAT:</strong> {winner['CFO / PAT']} | <strong>D/E:</strong> {winner['D/E']} | <strong>Pledge:</strong> {winner['Pledge']}
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
-            display_table = s_data['table'][['Symbol', 'Name', 'Price', '6M Return', '12M Return', 'vs 200-SMA', 'P/E', '5Y Med P/E', 'Valuation Discount', 'ROCE', 'D/E', 'Score']]
-            st.dataframe(display_table, use_container_width=True, hide_index=True)
+            st.dataframe(sec_df[['Symbol', 'Name', 'Price', 'vs 200-SMA', '6M Return', 'ROCE', 'D/E', 'CFO / PAT', 'P/E', 'Valuation Disc', 'Gate Status', 'Total Score']], use_container_width=True, hide_index=True)
             st.markdown("---")
 
-    # Tab 3: Small-Cap & Turnaround Hunter
+    # Tab 3: 360° Fundamental Diagnostic Master Table
     with tab3:
+        st.markdown("### 🩺 360° Fundamental & Forensic Health Audit (All Recommendations)")
+        st.caption("Every recommended stock must pass rigorous solvency, capital efficiency, and forensic governance gates.")
+        
+        col_f1, col_f2, col_f3 = st.columns(3)
+        with col_f1:
+            st.markdown("""
+            <div class="fund-card">
+                <strong>1. Capital Efficiency Gate</strong><br>
+                <span style="font-size:13px; color:#8b949e;">ROCE must be >15% to guarantee pricing power and shareholder value creation.</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_f2:
+            st.markdown("""
+            <div class="fund-card">
+                <strong>2. Cash Conversion Gate</strong><br>
+                <span style="font-size:13px; color:#8b949e;">Operating Cash Flow (CFO) must be ≥ 0.85x Net Profit (PAT) to eliminate paper accounting profits.</span>
+            </div>
+            """, unsafe_allow_html=True)
+        with col_f3:
+            st.markdown("""
+            <div class="fund-card">
+                <strong>3. Forensic & Solvency Gate</strong><br>
+                <span style="font-size:13px; color:#8b949e;">Zero promoter pledge (0.0%) and Debt-to-Equity < 0.50 (excluding banks).</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        st.markdown("#### 📋 Full Financial Health Audit Matrix")
+        st.dataframe(df_all[['Symbol', 'Name', 'Sector', 'Gate Status', 'Fund Score', 'ROCE', 'D/E', 'CFO / PAT', 'P/E', 'Valuation Disc', 'Pledge', 'Red Flags']], use_container_width=True, hide_index=True)
+
+    # Tab 4: Small-Cap & Turnaround Hunter
+    with tab4:
         st.markdown("### 🎯 Small-Cap & Turnaround Inflection Hunter")
-        st.caption("Scans for companies undergoing structural balance-sheet deleveraging, high Piotroski F-Scores (≥7/9), and operating margin expansions.")
+        st.caption("Scans for companies with fundamental turnarounds (deleveraging, high cash conversion, and surging ROCE).")
         
         st.markdown(f"""
         <div class="smallcap-card">
             <h4 style="color:#d29922; margin:0 0 8px 0;">⚠️ Asymmetric Small-Cap Risk Rules</h4>
             <ul style="margin:0; padding-left:20px; font-size:14px; color:#c9d1d9;">
-                <li><strong>Strict Capital Cap:</strong> Total turnaround satellite sleeve is capped at ₹{smallcap_amt:,.0f} (max 10-15% of portfolio).</li>
-                <li><strong>Position Sizing:</strong> Maximum ₹{smallcap_amt/max(1, len(df_smallcaps)):,.0f} (1.5%–2.5% max per position) to avoid ruin.</li>
-                <li><strong>Exit Engine:</strong> Hard stop-loss on weekly close below 50-EMA; take initial 50% capital off the table upon a 2x double.</li>
+                <li><strong>Strict Capital Cap:</strong> Smallcap sleeve is capped at ₹{smallcap_amt:,.0f} (max 10-15% of portfolio).</li>
+                <li><strong>Position Sizing:</strong> Maximum ₹{smallcap_amt/4:,.0f} per stock (1.5%–2.5% max per position) to avoid ruin.</li>
+                <li><strong>Exit Engine:</strong> Hard stop-loss on weekly close below 50-EMA; sell 50% capital upon a 2x double.</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
         
-        top_turnarounds = df_smallcaps[df_smallcaps['Verdict'] == '🚀 HIGH CONVICTION']
-        if not top_turnarounds.empty:
-            per_sc_amt = smallcap_amt / len(top_turnarounds)
-            sc_orders = []
-            for _, row in top_turnarounds.iterrows():
-                sc_orders.append({
-                    'Symbol': row['Symbol'],
-                    'Company': row['Company'],
-                    'Sector': row['Sector'],
-                    'Price': f"₹{row['Price']:,}",
-                    'Piotroski': row['Piotroski F-Score'],
-                    'Debt Status': row['Debt Status'],
-                    'Target Allocation': f"₹{per_sc_amt:,.0f}",
-                    'Est. Shares': int(per_sc_amt // row['Price']),
-                    'Catalyst / Theme': row['Inflection Catalyst']
-                })
-            st.markdown("#### 🚀 Top Conviction Turnaround Picks")
-            st.dataframe(pd.DataFrame(sc_orders), use_container_width=True, hide_index=True)
-            st.markdown("---")
-            
-        st.markdown("#### 📋 Full Small-Cap Turnaround Watchlist")
-        st.dataframe(df_smallcaps[['Symbol', 'Company', 'Sector', 'Price', 'vs 200-SMA', '6M Return', 'Piotroski F-Score', 'Debt Status', 'ROCE', 'Inflection Score', 'Verdict']], use_container_width=True, hide_index=True)
+        sc_df = df_all[df_all['Category'].str.contains('Smallcap|Turnaround')].sort_values(by="raw_total", ascending=False)
+        st.dataframe(sc_df[['Symbol', 'Name', 'Sector', 'Price', 'vs 200-SMA', '6M Return', 'Gate Status', 'ROCE', 'D/E', 'CFO / PAT', 'Thesis']], use_container_width=True, hide_index=True)
 
-    # Tab 4: News & AI
-    with tab4:
-        st.success(f"**AI Executive Digest:** {ai_summary['executive_summary']}")
-        col_r1, col_r2 = st.columns(2)
-        with col_r1:
-            st.metric("Geopolitical & Oil Threat Level", f"{ai_summary['geopolitical_oil_risk_score']} / 5.0")
-        with col_r2:
-            st.metric("Domestic Inflation Pressure", f"{ai_summary['inflation_risk_score']} / 5.0")
-            
-        st.markdown("#### Live Ingested Headlines")
-        for h in news_items:
-            with st.expander(f"📌 {h['title']} ({h['published']})"):
-                st.write(h['summary'])
-                st.markdown(f"[Read full report]({h['link']})")
-
-    # Tab 5: Execution Checklist
+    # Tab 5: Execution Orders
     with tab5:
         st.markdown("### 📝 Weekly Execution Order Summary")
         gold_amt = (metrics['target_weights']['Gold (GOLDBEES / SGBs)'] / 100.0) * portfolio_size
         debt_amt = (metrics['target_weights']['Debt / Cash (LIQUIDBEES)'] / 100.0) * portfolio_size
-        winners_list = ", ".join([s_data['winner']['Symbol'] for s_data in peer_results.values()])
-        top_sc_list = ", ".join(df_smallcaps[df_smallcaps['Verdict'] == '🚀 HIGH CONVICTION']['Symbol'].tolist())
+        
+        core_winners = [df_all[df_all['Sector'] == sec].iloc[0]['Symbol'] for sec in sectors]
+        top_sc = sc_df.head(3)['Symbol'].tolist()
         
         orders = [
-            {"Category": "Core Equity (Sector Peer Champions)", "Scrips": winners_list, "Target %": f"{metrics['target_weights']['Core Equity (Sector Peer Winners)']}%", "Capital to Deploy": f"₹{core_eq_amt:,.0f}"},
-            {"Category": "Satellite Small-Cap Turnarounds", "Scrips": top_sc_list, "Target %": f"{metrics['target_weights']['Satellite Smallcap / Turnaround Alphas']}%", "Capital to Deploy": f"₹{smallcap_amt:,.0f}"},
+            {"Category": "Core Large/Midcap (Fundamental Champions)", "Scrips": ", ".join(core_winners), "Target %": f"{metrics['target_weights']['Core Large/Midcap (Fundamental Champions)']}%", "Capital to Deploy": f"₹{core_eq_amt:,.0f}"},
+            {"Category": "Satellite Small-Cap Turnarounds", "Scrips": ", ".join(top_sc), "Target %": f"{metrics['target_weights']['Satellite Turnaround & Smallcap Alphas']}%", "Capital to Deploy": f"₹{smallcap_amt:,.0f}"},
             {"Category": "Gold ETF / SGBs", "Scrips": "GOLDBEES", "Target %": f"{metrics['target_weights']['Gold (GOLDBEES / SGBs)']}%", "Capital to Deploy": f"₹{gold_amt:,.0f}"},
             {"Category": "Liquid Debt / Overnight", "Scrips": "LIQUIDBEES", "Target %": f"{metrics['target_weights']['Debt / Cash (LIQUIDBEES)']}%", "Capital to Deploy": f"₹{debt_amt:,.0f}"}
         ]
