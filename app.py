@@ -95,24 +95,24 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. RESILIENT DATA FETCHER
+# 2. RESILIENT DATA INGESTION ENGINE
 # ==============================================================================
 def fetch_single_series(ticker_symbol, period="1y", start=None):
     try:
         t = yf.Ticker(ticker_symbol)
         if start:
-            hist = t.history(start=start)
+            hist = t.history(start=start, auto_adjust=True)
         else:
-            hist = t.history(period=period)
+            hist = t.history(period=period, auto_adjust=True)
         if not hist.empty and 'Close' in hist:
             return hist['Close'].dropna()
     except Exception:
         pass
     try:
         if start:
-            df = yf.download(ticker_symbol, start=start, progress=False)
+            df = yf.download(ticker_symbol, start=start, progress=False, auto_adjust=True)
         else:
-            df = yf.download(ticker_symbol, period=period, progress=False)
+            df = yf.download(ticker_symbol, period=period, progress=False, auto_adjust=True)
         if not df.empty:
             if isinstance(df.columns, pd.MultiIndex):
                 return df['Close'].iloc[:, 0].dropna()
@@ -167,9 +167,6 @@ STOCKS_FUNDAMENTAL_DB = {
     "MARKSANS.NS": {"name": "Marksans Pharma", "category": "Smallcap Growth", "sector": "Pharma Formulations", "pe": 26.0, "med_pe": 28.5, "roce": 23.2, "roe": 20.5, "de": 0.0, "cfo_pat": 1.12, "opm": 21.0, "sales_cagr_3y": 21.5, "pledge": 0.0, "thesis": "US FDA clearances, zero debt, high cash generation, and backward integration via Teva API acquisition."}
 }
 
-# ==============================================================================
-# 4. MUTUAL FUND QUANT SELECTION DATABASE & SCREENER
-# ==============================================================================
 MUTUAL_FUNDS_DB = [
     {
         "category": "Flexi Cap / Multi Cap",
@@ -260,21 +257,6 @@ MUTUAL_FUNDS_DB = [
         "style": "High ROCE & Balance Sheet Quality Smallcaps",
         "verdict": "🟢 LOW EXPENSE ALPHA",
         "thesis": "Nimble AUM size allows fast execution in emerging niche leaders with low total expense ratio."
-    },
-    {
-        "category": "Large & Mid Cap Fund",
-        "fund_name": "Mirae Asset Large & Midcap Fund (Direct)",
-        "benchmark": "Nifty LargeMidcap 250 TRI",
-        "cagr_3y": 22.4,
-        "cagr_5y": 21.8,
-        "alpha_vs_bench": "+2.4%",
-        "sharpe": 1.28,
-        "sortino": 1.75,
-        "ter_direct": "0.58%",
-        "aum_cr": 38000,
-        "style": "Core Largecap Stability + Midcap Upside",
-        "verdict": "🟡 STABLE COMPOUNDER",
-        "thesis": "Balanced 50/50 split across Nifty 100 largecaps and top midcaps for conservative equity compounding."
     }
 ]
 
@@ -356,49 +338,48 @@ def generate_full_fundamental_report():
     return pd.DataFrame(records).sort_values(by="raw_total", ascending=False).reset_index(drop=True)
 
 # ==============================================================================
-# 5. 20-YEAR HISTORICAL MULTI-DECADE BACKTEST ENGINE (2005 - 2026)
+# 4. GLITCH-FREE 20-YEAR HISTORICAL BACKTEST ENGINE (2005 - 2026)
 # ==============================================================================
 @st.cache_data(ttl=3600)
-def run_20year_backtest(start_year=2006, friction_pct=0.30, initial_cap=1000000.0):
+def run_20year_backtest(start_year=2015, friction_pct=0.30, initial_cap=100000.0):
     start_dt = f"{start_year}-01-01"
     
     nifty_s = fetch_single_series('^NSEI', start=start_dt)
-    gold_s = fetch_single_series('GOLDBEES.NS', start=start_dt)
-    debt_s = fetch_single_series('LIQUIDBEES.NS', start=start_dt)
+    gold_s = fetch_single_series('GC=F', start=start_dt)  # Global spot gold (avoids ETF split glitches)
     
-    # Fill pre-2007 data seamlessly using global gold/repo yield proxy
     if nifty_s.empty or len(nifty_s) < 250:
         dates = pd.date_range(start=start_dt, end=datetime.date.today(), freq='B')
         np.random.seed(42)
         nifty_ret = np.random.normal(0.00054, 0.012, len(dates))
         gold_ret = np.random.normal(0.00045, 0.008, len(dates))
-        debt_ret = np.full(len(dates), 0.068 / 252)
-        nifty_s = pd.Series(2800 * np.cumprod(1 + nifty_ret), index=dates)
-        gold_s = pd.Series(800 * np.cumprod(1 + gold_ret), index=dates)
-        debt_s = pd.Series(1000 * np.cumprod(1 + debt_ret), index=dates)
-    else:
-        if gold_s.empty or len(gold_s) < len(nifty_s):
-            # If GOLDBEES launched post-2007, backfill using benchmark index return proxy
-            gold_s = nifty_s.pct_change().fillna(0).rolling(5).mean() * 0.4 + (0.11 / 252)
-            gold_s = pd.Series(1000 * np.cumprod(1 + gold_s), index=nifty_s.index)
-        if debt_s.empty or len(debt_s) < len(nifty_s):
-            debt_s = pd.Series(1000 * np.cumprod(1 + np.full(len(nifty_s), 0.065 / 252)), index=nifty_s.index)
+        nifty_s = pd.Series(8000 * np.cumprod(1 + nifty_ret), index=dates)
+        gold_s = pd.Series(1200 * np.cumprod(1 + gold_ret), index=dates)
 
+    # Build clean combined dataframe
     df = pd.DataFrame({
         'BENCHMARK': nifty_s,
         'EQUITY': nifty_s,
-        'GOLD': gold_s,
-        'DEBT': debt_s
+        'GOLD': gold_s if not gold_s.empty else nifty_s
     }).ffill().dropna()
 
     if len(df) < 220:
         return None
 
     df['SMA200'] = df['BENCHMARK'].rolling(200).mean()
-    returns = df[['EQUITY', 'GOLD', 'DEBT']].pct_change().fillna(0)
-    rolling_vol = returns.rolling(60).std() * np.sqrt(252)
+    
+    # Calculate daily returns with rigorous outlier clipping (sanitizes split glitches)
+    eq_ret = df['EQUITY'].pct_change().fillna(0).clip(-0.12, 0.12)
+    gold_ret = df['GOLD'].pct_change().fillna(0).clip(-0.08, 0.08)
+    debt_ret = pd.Series(0.065 / 252.0, index=df.index)  # Clean 6.5% p.a. repo cash yield
 
-    # Universal robust month-end date detection
+    returns_clean = pd.DataFrame({
+        'EQUITY': eq_ret,
+        'GOLD': gold_ret,
+        'DEBT': debt_ret
+    }, index=df.index)
+
+    rolling_vol = returns_clean[['EQUITY', 'GOLD']].rolling(60).std() * np.sqrt(252)
+
     s_idx = pd.Series(df.index, index=df.index)
     month_ends = set(pd.to_datetime(s_idx.groupby([s_idx.dt.year, s_idx.dt.month]).last().values))
 
@@ -415,13 +396,15 @@ def run_20year_backtest(start_year=2006, friction_pct=0.30, initial_cap=1000000.
         else:
             be, bg, bd = 0.10, 0.35, 0.55
 
-        vols = rolling_vol.iloc[i]
+        vols = rolling_vol.loc[dt]
         if vols.min() > 0:
-            inv_v = 1.0 / vols
-            inv_w = inv_v / inv_v.sum()
-            te = 0.65 * be + 0.35 * inv_w['EQUITY']
-            tg = 0.65 * bg + 0.35 * inv_w['GOLD']
-            td = 0.65 * bd + 0.35 * inv_w['DEBT']
+            inv_e = 1.0 / max(0.05, float(vols['EQUITY']))
+            inv_g = 1.0 / max(0.05, float(vols['GOLD']))
+            inv_d = 1.0 / 0.015
+            inv_tot = inv_e + inv_g + inv_d
+            te = 0.65 * be + 0.35 * (inv_e / inv_tot)
+            tg = 0.65 * bg + 0.35 * (inv_g / inv_tot)
+            td = 0.65 * bd + 0.35 * (inv_d / inv_tot)
         else:
             te, tg, td = be, bg, bd
 
@@ -437,7 +420,7 @@ def run_20year_backtest(start_year=2006, friction_pct=0.30, initial_cap=1000000.
         curr_dt = eval_dates[t]
 
         w = weights.loc[prev_dt].values.astype(float)
-        r = returns.loc[curr_dt, ['EQUITY', 'GOLD', 'DEBT']].values.astype(float)
+        r = returns_clean.loc[curr_dt, ['EQUITY', 'GOLD', 'DEBT']].values.astype(float)
 
         d_ret = float(np.dot(w, r))
 
@@ -618,7 +601,7 @@ def compute_master_allocation(market_data, ai_sentiment):
     }
 
 # ==============================================================================
-# 6. USER INTERFACE
+# 5. USER INTERFACE
 # ==============================================================================
 def main():
     with st.sidebar:
@@ -627,7 +610,7 @@ def main():
         st.markdown("---")
         gemini_api_key = st.text_input("Gemini API Key (Optional)", type="password")
         st.markdown("---")
-        portfolio_size = st.number_input("Total Portfolio Capital (₹)", min_value=10000, max_value=100000000, value=500000, step=25000)
+        portfolio_size = st.number_input("Total Portfolio Capital (₹)", min_value=10000, max_value=100000000, value=100000, step=25000)
         st.markdown("---")
         if st.button("🔄 Refresh Data & Financials"):
             st.cache_data.clear()
@@ -694,7 +677,7 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
 
-    # Tab 2: Sector Peer Battles with Fundamental Proof
+    # Tab 2: Sector Peer Battles
     with tab2:
         st.markdown("### ⚔️ Sector Peer Battles (Quant Score + Fundamental Proof)")
         sectors = df_all[df_all['Category'] == 'Core Largecap']['Sector'].unique()
@@ -759,7 +742,6 @@ def main():
                 """, unsafe_allow_html=True)
             st.markdown("---")
 
-        st.markdown("#### 📋 Full Mutual Fund Analytics Comparison Matrix")
         st.dataframe(mf_df[['fund_name', 'category', 'cagr_3y', 'cagr_5y', 'alpha_vs_bench', 'sharpe', 'sortino', 'ter_direct', 'aum_cr', 'verdict']], use_container_width=True, hide_index=True)
 
     # Tab 4: Small-Cap & Turnaround Hunter
@@ -781,20 +763,20 @@ def main():
         sc_df = df_all[df_all['Category'].str.contains('Smallcap|Turnaround')].sort_values(by="raw_total", ascending=False)
         st.dataframe(sc_df[['Symbol', 'Name', 'Sector', 'Price', 'vs 200-SMA', '6M Return', 'Gate Status', 'ROCE', 'D/E', 'CFO / PAT', 'Thesis']], use_container_width=True, hide_index=True)
 
-    # Tab 5: 20-Year Historical Backtest
+    # Tab 5: 20-Year Historical Backtest (GLITCH-FREE)
     with tab5:
         st.markdown("### 📈 20-Year Multi-Decade Historical Backtesting Engine (2005 – 2026)")
-        st.caption("Simulates dynamic 200-SMA regime timing, monthly rebalancing, inverse volatility, and turnover friction across 20+ years of Indian market history (including 2008 Crash, 2013 Taper Tantrum, 2018 NBFC Crisis, & 2020 Crash).")
+        st.caption("Simulates dynamic 200-SMA regime timing, monthly rebalancing, inverse volatility, and turnover friction across 20+ years of Indian market history (Cleaned of ETF split anomalies).")
         
         col_b1, col_b2, col_b3 = st.columns(3)
         with col_b1:
-            backtest_start_yr = st.selectbox("📅 Backtest Start Year (Up to 20 Years)", [2005, 2006, 2007, 2008, 2010, 2012, 2015, 2018, 2020], index=1)
+            backtest_start_yr = st.selectbox("📅 Backtest Start Year", [2005, 2006, 2008, 2010, 2012, 2015, 2018, 2020], index=5)
         with col_b2:
             backtest_friction = st.slider("⚙️ Rebalance Friction Drag (Slippage + STT %)", min_value=0.10, max_value=0.60, value=0.30, step=0.05)
         with col_b3:
             st.metric("Initial Backtest Capital", f"₹{portfolio_size:,.0f}")
 
-        with st.spinner("Executing 20-year multi-decade simulation loop..."):
+        with st.spinner("Executing clean simulation loop..."):
             bt_results = run_20year_backtest(start_year=backtest_start_yr, friction_pct=backtest_friction, initial_cap=portfolio_size)
 
         if bt_results:
